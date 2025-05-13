@@ -1,0 +1,971 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- Command execution function
+local function executeCommand(player, command)
+    if not player or not player.Character then return end
+
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+
+    if command == ".fly" then
+        if humanoid then
+            humanoid.PlatformStand = not humanoid.PlatformStand
+            if rootPart then
+                if humanoid.PlatformStand then
+                    local bodyVelocity = Instance.new("BodyVelocity")
+                    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                    bodyVelocity.MaxForce = Vector3.new(4000, math.huge, 4000)
+                    bodyVelocity.P = 1000
+                    bodyVelocity.Name = "FlightVelocity"
+                    bodyVelocity.Parent = rootPart
+
+                    local connection
+                    connection = RunService.Heartbeat:Connect(function()
+                        if not player or not player.Character or not humanoid or not humanoid.PlatformStand then
+                            if connection then connection:Disconnect() end
+                            return
+                        end
+                        
+                        local direction = Vector3.new()
+                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + rootPart.CFrame.LookVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - rootPart.CFrame.LookVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + rootPart.CFrame.RightVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - rootPart.CFrame.RightVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0,1,0) end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction + Vector3.new(0,-1,0) end
+                        
+                        if direction.Magnitude > 0 then
+                            bodyVelocity.Velocity = direction.Unit * 50
+                        else
+                            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                        end
+                    end)
+                else
+                    if rootPart:FindFirstChild("FlightVelocity") then
+                        rootPart.FlightVelocity:Destroy()
+                    end
+                end
+            end
+        end
+    elseif command == ".invisible" then
+        if player.Character then
+            for _, part in ipairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") or part:IsA("Decal") then
+                    part.Transparency = part.Transparency == 0 and 1 or 0
+                end
+            end
+        end
+    elseif command == ".noclip" then
+        if humanoid then
+            -- Toggle the noclip attribute
+            local noclip = not (humanoid:GetAttribute("Noclip") or false)
+            humanoid:SetAttribute("Noclip", noclip)
+            
+            -- Remove any existing connections
+            if rootPart and rootPart:GetAttribute("NoclipConnection") then
+                local existingConnection = rootPart:GetAttribute("NoclipConnection")
+                if typeof(existingConnection) == "RBXScriptConnection" then
+                    existingConnection:Disconnect()
+                end
+            end
+            
+            -- Create new connection if noclip is enabled
+            if noclip then
+                local connection
+                connection = RunService.Stepped:Connect(function()
+                    if not player or not player.Character or not humanoid:GetAttribute("Noclip") then
+                        if connection then connection:Disconnect() end
+                        return
+                    end
+                    
+                    for _, part in pairs(player.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end)
+                
+                if rootPart then
+                    rootPart:SetAttribute("NoclipConnection", connection)
+                end
+            end
+        end
+    elseif command == ".speed" then
+        if humanoid then
+            humanoid.WalkSpeed = humanoid.WalkSpeed == 16 and 50 or 16
+        end
+    elseif command == ".jump" then
+        if humanoid then
+            humanoid.JumpPower = humanoid.JumpPower == 50 and 100 or 50
+        end
+    elseif command == ".god" then
+        if humanoid then
+            -- Toggle god mode
+            if humanoid.MaxHealth < 10000 then
+                humanoid.MaxHealth = math.huge
+                humanoid.Health = math.huge
+            else
+                humanoid.MaxHealth = 100
+                humanoid.Health = 100
+            end
+        end
+    elseif command == ".reset" then
+        if player.Character then
+            player.Character:BreakJoints()
+        end
+    end
+end
+
+-- Utility function to create UI elements with Rayfield style
+local function createRoundedFrame(parent, size, position, bgColor, cornerRadius)
+    local frame = Instance.new("Frame")
+    frame.Size = size
+    frame.Position = position
+    frame.BackgroundColor3 = bgColor
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+
+    local uicorner = Instance.new("UICorner")
+    uicorner.CornerRadius = cornerRadius or UDim.new(0, 8)
+    uicorner.Parent = frame
+
+    return frame
+end
+
+local function createTextLabel(parent, size, position, text, font, textSize, textColor, bold)
+    local label = Instance.new("TextLabel")
+    label.Size = size
+    label.Position = position
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.Font = font or Enum.Font.Gotham
+    label.TextSize = textSize or 18
+    label.TextColor3 = textColor or Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.Parent = parent
+    if bold then
+        label.Font = Enum.Font.GothamBold
+    end
+    return label
+end
+
+local function createButton(parent, size, position, text, bgColor, textColor)
+    local button = Instance.new("TextButton")
+    button.Size = size
+    button.Position = position
+    button.BackgroundColor3 = bgColor or Color3.fromRGB(0, 150, 255)
+    button.TextColor3 = textColor or Color3.fromRGB(255, 255, 255)
+    button.Text = text
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 18
+    button.AutoButtonColor = true
+    button.BorderSizePixel = 0
+    button.Parent = parent
+
+    local uicorner = Instance.new("UICorner")
+    uicorner.CornerRadius = UDim.new(0, 6)
+    uicorner.Parent = button
+
+    return button
+end
+
+local function createToggle(parent, size, position, text, initialState, callback)
+    local toggleFrame = createRoundedFrame(parent, size, position, Color3.fromRGB(40, 40, 40), UDim.new(0, 6))
+
+    local label = createTextLabel(toggleFrame, UDim2.new(0.7, 0, 1, 0), UDim2.new(0.03, 0, 0, 0), text, Enum.Font.GothamBold, 18, Color3.fromRGB(255, 255, 255), true)
+
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Size = UDim2.new(0.25, 0, 0.6, 0)
+    toggleButton.Position = UDim2.new(0.7, 0, 0.2, 0)
+    toggleButton.BackgroundColor3 = initialState and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(100, 100, 100)
+    toggleButton.Text = initialState and "ON" or "OFF"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.TextSize = 16
+    toggleButton.AutoButtonColor = true
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Parent = toggleFrame
+
+    local uicorner = Instance.new("UICorner")
+    uicorner.CornerRadius = UDim.new(0, 6)
+    uicorner.Parent = toggleButton
+
+    toggleButton.MouseButton1Click:Connect(function()
+        local newState = not (toggleButton.Text == "ON")
+        toggleButton.Text = newState and "ON" or "OFF"
+        toggleButton.BackgroundColor3 = newState and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(100, 100, 100)
+        callback(newState)
+    end)
+
+    return toggleFrame
+end
+
+-- Main GUI creation function
+local function createModyHub(player)
+    -- Check for existing GUI and remove it
+    if player:FindFirstChild("PlayerGui") then
+        local existingGui = player.PlayerGui:FindFirstChild("Mody")
+        if existingGui then
+            existingGui:Destroy()
+        end
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "Mody"
+    screenGui.ResetOnSpawn = false -- Keep the GUI when the player respawns
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+
+    -- Main container frame with black background and RGB border
+    local mainFrame = createRoundedFrame(screenGui, UDim2.new(0, 450, 0, 550), UDim2.new(0.5, -225, 0.5, -275), Color3.fromRGB(10, 10, 10), UDim.new(0, 12))
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Name = "MainFrame"
+
+    -- RGB border effect using UIStroke with changing color
+    local borderStroke = Instance.new("UIStroke")
+    borderStroke.Parent = mainFrame
+    borderStroke.Thickness = 3
+    borderStroke.Color = Color3.fromRGB(255, 0, 0)
+    borderStroke.Transparency = 0
+    borderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+    -- Animate RGB border color cycling
+    spawn(function()
+        local hue = 0
+        while true do
+            if not screenGui or not screenGui.Parent then break end
+            hue = (hue + 1) % 360
+            local color = Color3.fromHSV(hue/360, 1, 1)
+            if borderStroke and borderStroke.Parent then
+                borderStroke.Color = color
+            else
+                break
+            end
+            wait(0.03)
+        end
+    end)
+
+    -- Title bar
+    local titleBar = createRoundedFrame(mainFrame, UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 0), Color3.fromRGB(20, 20, 20), UDim.new(0, 12))
+    titleBar.Name = "TitleBar"
+    local titleLabel = createTextLabel(titleBar, UDim2.new(1, -100, 1, 0), UDim2.new(0, 20, 0, 0), "MODY HACK SCRIPT", Enum.Font.GothamBlack, 26, Color3.fromRGB(255, 255, 255), true)
+
+    -- Close button
+    local closeButton = createButton(titleBar, UDim2.new(0, 60, 0, 30), UDim2.new(1, -70, 0, 5), "×", Color3.fromRGB(255, 50, 50), Color3.fromRGB(255, 255, 255))
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+
+    -- Minimize button
+    local minimizeButton = createButton(titleBar, UDim2.new(0, 60, 0, 30), UDim2.new(1, -140, 0, 5), "—", Color3.fromRGB(100, 100, 100), Color3.fromRGB(255, 255, 255))
+
+    -- Content frame
+    local contentFrame = createRoundedFrame(mainFrame, UDim2.new(1, -20, 1, -60), UDim2.new(0, 10, 0, 50), Color3.fromRGB(15, 15, 15), UDim.new(0, 10))
+    contentFrame.Name = "ContentFrame"
+
+    -- Tabs container
+    local tabsFrame = createRoundedFrame(contentFrame, UDim2.new(0, 130, 1, 0), UDim2.new(0, 0, 0, 0), Color3.fromRGB(20, 20, 20), UDim.new(0, 10))
+    tabsFrame.Name = "TabsFrame"
+
+    -- Tab buttons list
+    local tabButtons = {}
+    local tabContentFrames = {}
+
+    local tabNames = {"Commands", "Player", "Other", "Settings", "Tools"}
+
+    -- Create tab content frames and store references
+    for _, name in ipairs(tabNames) do
+        local tabContentFrame = createRoundedFrame(contentFrame, UDim2.new(1, -140, 1, -10), UDim2.new(0, 140, 0, 5), Color3.fromRGB(25, 25, 25), UDim.new(0, 10))
+        tabContentFrame.Name = name .. "Tab"
+        tabContentFrame.Visible = false
+        
+        -- Create a scrolling frame for each tab
+        local scrollFrame = Instance.new("ScrollingFrame")
+        scrollFrame.Size = UDim2.new(1, -20, 1, -20)
+        scrollFrame.Position = UDim2.new(0, 10, 0, 10)
+        scrollFrame.BackgroundTransparency = 1
+        scrollFrame.BorderSizePixel = 0
+        scrollFrame.ScrollBarThickness = 4
+        scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scrollFrame.Parent = tabContentFrame
+        scrollFrame.Name = name .. "ScrollFrame"
+        
+        -- Add list layout to organize content
+        local layout = Instance.new("UIListLayout")
+        layout.Padding = UDim.new(0, 10)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Parent = scrollFrame
+        
+        -- Update canvas size when content changes
+        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+        end)
+        
+        tabContentFrames[name] = {frame = tabContentFrame, scroll = scrollFrame}
+    end
+
+    -- Function to select a tab
+    local function selectTab(name)
+        for tabName, tabInfo in pairs(tabContentFrames) do
+            tabInfo.frame.Visible = (tabName == name)
+            if tabButtons[tabName] then
+                tabButtons[tabName].BackgroundColor3 = (tabName == name) and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(20, 20, 20)
+                tabButtons[tabName].TextColor3 = (tabName == name) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)
+            end
+        end
+    end
+
+    -- Create tab buttons
+    for i, name in ipairs(tabNames) do
+        local btn = createButton(tabsFrame, UDim2.new(1, -10, 0, 40), UDim2.new(0, 5, 0, (i-1)*45 + 10), name, Color3.fromRGB(20, 20, 20), Color3.fromRGB(150, 150, 150))
+        btn.Name = name .. "Button"
+        btn.AutoButtonColor = false
+        
+        -- Button hover effects
+        btn.MouseEnter:Connect(function()
+            if btn.BackgroundColor3 ~= Color3.fromRGB(0, 200, 255) then
+                TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 60)}):Play()
+            end
+        end)
+        
+        btn.MouseLeave:Connect(function()
+            if btn.BackgroundColor3 ~= Color3.fromRGB(0, 200, 255) then
+                TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
+            end
+        end)
+        
+        -- Tab selection
+        btn.MouseButton1Click:Connect(function()
+            selectTab(name)
+        end)
+        
+        tabButtons[name] = btn
+    end
+
+    -- Function to add a toggle button to a specific tab
+    local function addToggle(tabName, text, callback)
+        if not tabContentFrames[tabName] then return end
+        
+        local scrollFrame = tabContentFrames[tabName].scroll
+        local toggle = createToggle(scrollFrame, UDim2.new(1, -10, 0, 40), UDim2.new(0, 0, 0, 0), text, false, callback)
+        toggle.LayoutOrder = #scrollFrame:GetChildren()
+        
+        return toggle
+    end
+
+    -- Function to add a command button to a specific tab
+    local function addCommandButton(tabName, text, commandFunc)
+        if not tabContentFrames[tabName] then return end
+        
+        local scrollFrame = tabContentFrames[tabName].scroll
+        local buttonFrame = createRoundedFrame(scrollFrame, UDim2.new(1, -10, 0, 40), UDim2.new(0, 0, 0, 0), Color3.fromRGB(30, 30, 40), UDim.new(0, 6))
+        buttonFrame.LayoutOrder = #scrollFrame:GetChildren()
+        
+        local button = createButton(buttonFrame, UDim2.new(1, -20, 1, -10), UDim2.new(0, 10, 0, 5), text, Color3.fromRGB(40, 40, 60), Color3.fromRGB(255, 255, 255))
+        
+        button.MouseButton1Click:Connect(function()
+            commandFunc()
+        end)
+        
+        return buttonFrame
+    end
+
+    -- Add toggles to the Commands tab
+    addToggle("Commands", "Fly Mode", function(state)
+        executeCommand(player, ".fly")
+    end)
+    
+    addToggle("Commands", "Invisibility", function(state)
+        executeCommand(player, ".invisible")
+    end)
+    
+    addToggle("Commands", "Noclip", function(state)
+        executeCommand(player, ".noclip")
+    end)
+    
+    addToggle("Commands", "Speed Boost", function(state)
+        executeCommand(player, ".speed")
+    end)
+    
+    addToggle("Commands", "Jump Boost", function(state)
+        executeCommand(player, ".jump")
+    end)
+    
+    addToggle("Commands", "God Mode", function(state)
+        executeCommand(player, ".god")
+    end)
+    
+    addCommandButton("Commands", "Reset Character", function()
+        executeCommand(player, ".reset")
+    end)
+    
+    -- Add Big Size feature with proper scaling implementation
+    addToggle("Commands", "Big Size", function(state)
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        if state then
+                            part.Size = part.Size * 2
+                        else
+                            part.Size = part.Size / 2
+                        end
+                    end
+                end
+                
+                -- Adjust the rootpart position to prevent sinking
+                local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+                if rootPart and state then
+                    rootPart.CFrame = rootPart.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end
+    end)
+    
+    -- Add Night Vision feature
+    addToggle("Commands", "Night Vision", function(state)
+        local lighting = game:GetService("Lighting")
+        if state then
+            lighting.Brightness = 2
+            lighting.ClockTime = 0
+            lighting.FogEnd = 100000
+            lighting.GlobalShadows = false
+        else
+            lighting.Brightness = 1
+            lighting.ClockTime = 14
+            lighting.FogEnd = 100000
+            lighting.GlobalShadows = true
+        end
+    end)
+
+    -- Player tab toggles
+    addToggle("Player", "Super Speed", function(state)
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = state and 100 or 16
+            end
+        end
+    end)
+    
+    addToggle("Player", "Super Jump", function(state)
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.JumpPower = state and 150 or 50
+            end
+        end
+    end)
+    
+    addToggle("Player", "Infinite Jump", function(state)
+        local connection
+        if state then
+            connection = UserInputService.JumpRequest:Connect(function()
+                if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+                    player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end)
+            player:SetAttribute("InfiniteJumpConnection", connection)
+        else
+            local existingConnection = player:GetAttribute("InfiniteJumpConnection")
+            if existingConnection and typeof(existingConnection) == "RBXScriptConnection" then
+                existingConnection:Disconnect()
+            end
+            player:SetAttribute("InfiniteJumpConnection", nil)
+        end
+    end)
+    
+    addToggle("Player", "Auto Sprint", function(state)
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:SetAttribute("AutoSprint", state)
+                
+                local connection
+                if state then
+                    connection = RunService.Heartbeat:Connect(function()
+                        if humanoid and humanoid:GetAttribute("AutoSprint") then
+                            local isMoving = humanoid.MoveDirection.Magnitude > 0
+                            if isMoving then
+                                humanoid.WalkSpeed = 32
+                            else
+                                humanoid.WalkSpeed = 16
+                            end
+                        end
+                    end)
+                    humanoid:SetAttribute("AutoSprintConnection", connection)
+                else
+                    local existingConnection = humanoid:GetAttribute("AutoSprintConnection")
+                    if existingConnection and typeof(existingConnection) == "RBXScriptConnection" then
+                        existingConnection:Disconnect()
+                    end
+                    humanoid:SetAttribute("AutoSprintConnection", nil)
+                    humanoid.WalkSpeed = 16
+                end
+            end
+        end
+    end)
+
+    -- Other tab features
+    addToggle("Other", "ESP Players", function(state)
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Character then
+                for _, part in pairs(p.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        if state then
+                            part.Material = Enum.Material.Neon
+                            part.BrickColor = BrickColor.new("Really red")
+                        else
+                            part.Material = Enum.Material.Plastic
+                            part.BrickColor = BrickColor.new("Medium stone grey")
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    addToggle("Other", "Full Bright", function(state)
+        local lighting = game:GetService("Lighting")
+        if state then
+            lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            lighting.Brightness = 2
+            lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
+            lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
+        else
+            lighting.Ambient = Color3.fromRGB(127, 127, 127)
+            lighting.Brightness = 1
+            lighting.ColorShift_Bottom = Color3.fromRGB(0, 0, 0)
+            lighting.ColorShift_Top = Color3.fromRGB(0, 0, 0)
+        end
+    end)
+    
+    addToggle("Other", "Anti AFK", function(state)
+        local connection
+        if state then
+            connection = RunService.Heartbeat:Connect(function()
+                local virtualUser = game:GetService("VirtualUser")
+                virtualUser:CaptureController()
+                virtualUser:ClickButton2(Vector2.new())
+            end)
+            player:SetAttribute("AntiAFKConnection", connection)
+        else
+            local existingConnection = player:GetAttribute("AntiAFKConnection")
+            if existingConnection and typeof(existingConnection) == "RBXScriptConnection" then
+                existingConnection:Disconnect()
+            end
+            player:SetAttribute("AntiAFKConnection", nil)
+        end
+    end)
+
+    -- Settings tab features
+    addToggle("Settings", "Rainbow Background", function(state)
+        if state then
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
+                if not mainFrame or not mainFrame.Parent then
+                    if connection then connection:Disconnect() end
+                    return
+                end
+                
+                local hue = tick() % 10 / 10
+                local color = Color3.fromHSV(hue, 0.7, 0.3) -- Less intense to keep it readable
+                mainFrame.BackgroundColor3 = color
+            end)
+            mainFrame:SetAttribute("RainbowBGConnection", connection)
+        else
+            local existingConnection = mainFrame:GetAttribute("RainbowBGConnection")
+            if existingConnection and typeof(existingConnection) == "RBXScriptConnection" then
+                existingConnection:Disconnect()
+            end
+            mainFrame:SetAttribute("RainbowBGConnection", nil)
+            mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+        end
+    end)
+    
+    addToggle("Settings", "Transparency Mode", function(state)
+        mainFrame.BackgroundTransparency = state and 0.5 or 0
+        borderStroke.Transparency = state and 0.5 or 0
+        for _, v in pairs(mainFrame:GetDescendants()) do
+            if v:IsA("Frame") or v:IsA("TextButton") or v:IsA("ScrollingFrame") then
+                if v.BackgroundTransparency < 1 then
+                    v.BackgroundTransparency = state and 0.5 or 0
+                end
+            end
+        end
+    end)
+    
+    -- Theme selector
+    local themes = {
+        ["Default"] = {
+            main = Color3.fromRGB(10, 10, 10),
+            secondary = Color3.fromRGB(20, 20, 20),
+            accent = Color3.fromRGB(0, 150, 255),
+            text = Color3.fromRGB(255, 255, 255)
+        },
+        ["Dark Red"] = {
+            main = Color3.fromRGB(20, 0, 0),
+            secondary = Color3.fromRGB(40, 0, 0),
+            accent = Color3.fromRGB(255, 50, 50),
+            text = Color3.fromRGB(255, 200, 200)
+        },
+        ["Forest"] = {
+            main = Color3.fromRGB(0, 20, 0),
+            secondary = Color3.fromRGB(0, 40, 0),
+            accent = Color3.fromRGB(50, 255, 50),
+            text = Color3.fromRGB(200, 255, 200)
+        }
+    }
+    
+    local themeFrame = createRoundedFrame(tabContentFrames["Settings"].scroll, UDim2.new(1, -10, 0, 130), UDim2.new(0, 0, 0, 0), Color3.fromRGB(30, 30, 40), UDim.new(0, 6))
+    themeFrame.LayoutOrder = #tabContentFrames["Settings"].scroll:GetChildren()
+    
+    local themeTitle = createTextLabel(themeFrame, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 5), "Theme Selector", Enum.Font.GothamBold, 18, Color3.fromRGB(255, 255, 255), true)
+    
+    local themeButtons = {}
+    local yOffset = 40
+    
+    for themeName, themeColors in pairs(themes) do
+        local button = createButton(themeFrame, UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, yOffset), themeName, themeColors.accent, themeColors.text)
+        
+        button.MouseButton1Click:Connect(function()
+            mainFrame.BackgroundColor3 = themeColors.main
+            contentFrame.BackgroundColor3 = themeColors.secondary
+            
+            for _, tab in pairs(tabContentFrames) do
+                tab.frame.BackgroundColor3 = themeColors.secondary
+            end
+            
+            for _, btn in pairs(tabButtons) do
+                if btn.BackgroundColor3 ~= Color3.fromRGB(0, 200, 255) then
+                    btn.BackgroundColor3 = themeColors.secondary
+                end
+            end
+            
+            -- Update accent colors for buttons
+            for _, descendant in pairs(mainFrame:GetDescendants()) do
+                if descendant:IsA("TextButton") and descendant.BackgroundColor3 == Color3.fromRGB(0, 150, 255) then
+                    descendant.BackgroundColor3 = themeColors.accent
+                end
+            end
+        end)
+        
+        themeButtons[themeName] = button
+        yOffset = yOffset + 35
+    end
+
+    -- Tools tab features
+    addToggle("Tools", "Teleport Tool", function(state)
+        if state then
+            local tool = Instance.new("Tool")
+            tool.Name = "Teleport Tool"
+            tool.RequiresHandle = false
+            tool.CanBeDropped = false
+            tool.Parent = player.Backpack
+            
+            tool.Activated:Connect(function()
+                local character = player.Character
+                if character then
+                    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                    if humanoidRootPart then
+                        local mousePos = player:GetMouse().Hit.Position
+                        humanoidRootPart.CFrame = CFrame.new(mousePos + Vector3.new(0, 3, 0))
+                    end
+                end
+            end)
+        else
+            for _, item in pairs(player.Backpack:GetChildren()) do
+                if item.Name == "Teleport Tool" then
+                    item:Destroy()
+                end
+            end
+            for _, item in pairs(player.Character:GetChildren()) do
+                if item.Name == "Teleport Tool" then
+                    item:Destroy()
+                end
+            end
+        end
+    end)
+    
+    addToggle("Tools", "Btools", function(state)
+        if state then
+            local btools = {"Move", "Clone", "Delete", "Rotate"}
+            for _, toolName in pairs(btools) do
+                local tool = Instance.new("Tool")
+                tool.Name = toolName
+                tool.RequiresHandle = false
+                tool.CanBeDropped = false
+                tool.Parent = player.Backpack
+            end
+        else
+            local btools = {"Move", "Clone", "Delete", "Rotate"}
+            for _, toolName in pairs(btools) do
+                for _, item in pairs(player.Backpack:GetChildren()) do
+                    if item.Name == toolName then
+                        item:Destroy()
+                    end
+                end
+                for _, item in pairs(player.Character:GetChildren()) do
+                    if item.Name == toolName then
+                        item:Destroy()
+                    end
+                end
+            end
+        end
+    end)
+    
+    addToggle("Tools", "Click Delete", function(state)
+        local connection
+        if state then
+            local mouse = player:GetMouse()
+            connection = mouse.Button1Down:Connect(function()
+                if mouse.Target and not mouse.Target:FindFirstAncestor("Mody") then
+                    mouse.Target:Destroy()
+                end
+            end)
+            player:SetAttribute("ClickDeleteConnection", connection)
+        else
+            local existingConnection = player:GetAttribute("ClickDeleteConnection")
+            if existingConnection and typeof(existingConnection) == "RBXScriptConnection" then
+                existingConnection:Disconnect()
+            end
+            player:SetAttribute("ClickDeleteConnection", nil)
+        end
+    end)
+
+    -- Minimize functionality with restore button
+    local minimized = false
+    local originalSize = mainFrame.Size
+    local originalPosition = mainFrame.Position
+    
+    local restoreButton = createButton(screenGui, UDim2.new(0, 120, 0, 30), UDim2.new(0, 10, 0, 10), "Mody script", Color3.fromRGB(0, 150, 255), Color3.fromRGB(255, 255, 255))
+    restoreButton.Visible = false
+
+    restoreButton.MouseButton1Click:Connect(function()
+        TweenService:Create(mainFrame, TweenInfo.new(0.3), {
+            Size = originalSize,
+            Position = originalPosition
+        }):Play()
+        wait(0.3)
+        mainFrame.Visible = true
+        restoreButton.Visible = false
+        minimized = false
+    end)
+
+    minimizeButton.MouseButton1Click:Connect(function()
+        if minimized then
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {
+                Size = originalSize,
+                Position = originalPosition
+            }):Play()
+            wait(0.3)
+            restoreButton.Visible = false
+            minimized = false
+        else
+            originalSize = mainFrame.Size
+            originalPosition = mainFrame.Position
+            TweenService:Create(mainFrame, TweenInfo.new(0.3), {
+                Size = UDim2.new(0, mainFrame.AbsoluteSize.X, 0, 0),
+                Position = UDim2.new(0.5, -mainFrame.AbsoluteSize.X/2, 0, -50)
+            }):Play()
+            wait(0.3)
+            mainFrame.Visible = false
+            restoreButton.Visible = true
+            minimized = true
+        end
+    end)
+
+    -- Dragging functionality for mainFrame
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        TweenService:Create(mainFrame, TweenInfo.new(0.1), {
+            Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        }):Play()
+    end
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+
+    -- Resize button for window resizing (fixed implementation)
+    local resizeButton = createButton(mainFrame, UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 1, -25), "↘", Color3.fromRGB(0, 150, 255), Color3.fromRGB(255, 255, 255))
+    resizeButton.AutoButtonColor = true
+    resizeButton.BorderSizePixel = 0
+    resizeButton.Font = Enum.Font.GothamBold
+    resizeButton.TextSize = 14
+    resizeButton.ZIndex = 10
+
+    local minSize = Vector2.new(300, 300)
+    local maxSize = Vector2.new(800, 800)
+    local resizing = false
+    local resizeStartPos
+    local resizeStartSize
+
+    resizeButton.MouseButton1Down:Connect(function()
+        resizing = true
+        resizeStartPos = UserInputService:GetMouseLocation()
+        resizeStartSize = mainFrame.AbsoluteSize
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local mousePos = UserInputService:GetMouseLocation()
+            local delta = mousePos - resizeStartPos
+            
+            local newWidth = math.clamp(resizeStartSize.X + delta.X, minSize.X, maxSize.X)
+            local newHeight = math.clamp(resizeStartSize.Y + delta.Y, minSize.Y, maxSize.Y)
+            
+            TweenService:Create(mainFrame, TweenInfo.new(0.05), {
+                Size = UDim2.new(0, newWidth, 0, newHeight)
+            }):Play()
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            resizing = false
+        end
+    end)
+
+    -- Command input box
+    local commandFrame = createRoundedFrame(mainFrame, UDim2.new(1, -40, 0, 40), UDim2.new(0, 20, 1, -50), Color3.fromRGB(20, 20, 30), UDim.new(0, 8))
+    
+    local commandBox = Instance.new("TextBox")
+    commandBox.Size = UDim2.new(0.7, 0, 1, -10)
+    commandBox.Position = UDim2.new(0, 10, 0, 5)
+    commandBox.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    commandBox.BorderSizePixel = 0
+    commandBox.Font = Enum.Font.Gotham
+    commandBox.TextSize = 18
+    commandBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    commandBox.PlaceholderText = "Enter command here..."
+    commandBox.Text = ""
+    commandBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    commandBox.ClearTextOnFocus = false
+    commandBox.Parent = commandFrame
+    
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 6)
+    boxCorner.Parent = commandBox
+    
+    local executeButton = createButton(commandFrame, UDim2.new(0.25, 0, 1, -10), UDim2.new(0.72, 0, 0, 5), "Execute", Color3.fromRGB(0, 200, 100), Color3.fromRGB(255, 255, 255))
+    
+    executeButton.MouseButton1Click:Connect(function()
+        local cmd = commandBox.Text
+        if cmd and cmd ~= "" then
+            executeCommand(player, cmd)
+            commandBox.Text = ""
+        end
+    end)
+    
+    -- Key commands
+    commandBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local cmd = commandBox.Text
+            if cmd and cmd ~= "" then
+                executeCommand(player, cmd)
+                commandBox.Text = ""
+            end
+        end
+    end)
+    
+    -- Help window
+    local showHelp = createButton(titleBar, UDim2.new(0, 30, 0, 30), UDim2.new(1, -180, 0, 5), "?", Color3.fromRGB(0, 150, 255), Color3.fromRGB(255, 255, 255))
+    
+    showHelp.MouseButton1Click:Connect(function()
+        -- Create help window
+        local helpFrame = createRoundedFrame(screenGui, UDim2.new(0, 400, 0, 300), UDim2.new(0.5, -200, 0.5, -150), Color3.fromRGB(20, 20, 30), UDim.new(0, 12))
+        helpFrame.ZIndex = 100
+        
+        local helpTitle = createTextLabel(helpFrame, UDim2.new(1, -100, 0, 40), UDim2.new(0, 20, 0, 0), "Mody Hack script Help", Enum.Font.GothamBold, 24, Color3.fromRGB(255, 255, 255), true)
+        helpTitle.ZIndex = 101
+        
+        local closeHelpBtn = createButton(helpFrame, UDim2.new(0, 30, 0, 30), UDim2.new(1, -40, 0, 5), "×", Color3.fromRGB(255, 50, 50), Color3.fromRGB(255, 255, 255))
+        closeHelpBtn.ZIndex = 101
+        
+        closeHelpBtn.MouseButton1Click:Connect(function()
+            helpFrame:Destroy()
+        end)
+        
+        local helpScroll = Instance.new("ScrollingFrame")
+        helpScroll.Size = UDim2.new(1, -40, 1, -50)
+        helpScroll.Position = UDim2.new(0, 20, 0, 40)
+        helpScroll.BackgroundTransparency = 1
+        helpScroll.BorderSizePixel = 0
+        helpScroll.ScrollBarThickness = 4
+        helpScroll.ZIndex = 101
+        helpScroll.Parent = helpFrame
+        
+        local helpCommands = {
+            {cmd = ".fly", desc = "Toggle fly mode"},
+            {cmd = ".invisible", desc = "Toggle invisibility"},
+            {cmd = ".noclip", desc = "Toggle noclip mode"},
+            {cmd = ".speed", desc = "Toggle speed boost"},
+            {cmd = ".jump", desc = "Toggle jump power boost"},
+            {cmd = ".god", desc = "Toggle god mode"},
+            {cmd = ".reset", desc = "Reset character"}
+        }
+        
+        local yPos = 0
+        for _, cmdInfo in ipairs(helpCommands) do
+            local cmdFrame = createRoundedFrame(helpScroll, UDim2.new(1, -10, 0, 30), UDim2.new(0, 0, 0, yPos), Color3.fromRGB(30, 30, 40), UDim.new(0, 6))
+            cmdFrame.ZIndex = 102
+            
+            local cmdLabel = createTextLabel(cmdFrame, UDim2.new(0.3, 0, 1, 0), UDim2.new(0, 10, 0, 0), cmdInfo.cmd, Enum.Font.Code, 16, Color3.fromRGB(0, 200, 255), true)
+            cmdLabel.ZIndex = 103
+            
+            local descLabel = createTextLabel(cmdFrame, UDim2.new(0.7, -10, 1, 0), UDim2.new(0.3, 0, 0, 0), cmdInfo.desc, Enum.Font.Gotham, 14, Color3.fromRGB(255, 255, 255), false)
+            descLabel.ZIndex = 103
+            
+            yPos = yPos + 35
+        end
+        
+        helpScroll.CanvasSize = UDim2.new(0, 0, 0, yPos + 10)
+    end)
+    
+    -- Select default tab
+    selectTab("Commands")
+    
+    return screenGui
+end
+
+-- Create the GUI for the local player
+local player = Players.LocalPlayer
+if player then
+    createModyHub(player)
+end
